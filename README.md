@@ -1,21 +1,73 @@
 # JobGuard
 
-[![npm version](https://img.shields.io/npm/v/jobguard.svg)](https://www.npmjs.com/package/jobguard)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-22+-green.svg)](https://nodejs.org/)
+[![npm](https://img.shields.io/npm/v/jobguard?logo=npm)](https://www.npmjs.com/package/jobguard)
+[![node](https://img.shields.io/node/v/jobguard)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![CI](https://github.com/alexpota/jobguard/workflows/CI/badge.svg)](https://github.com/alexpota/jobguard/actions)
+[![coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)](https://github.com/alexpota/jobguard)
+[![License](https://img.shields.io/npm/l/jobguard)](https://opensource.org/licenses/MIT)
+[![downloads](https://img.shields.io/npm/dm/jobguard)](https://www.npmjs.com/package/jobguard)
 
 PostgreSQL durability for Redis-backed job queues (Bull, BullMQ, Bee-Queue) with minimal integration.
 
+## Quick Start
+
+### Installation
+
+```bash
+npm install jobguard pg
+```
+
+### Basic Usage
+
+```typescript
+import Bull from 'bull';
+import { JobGuard } from 'jobguard';
+
+// Create your queue as usual
+const queue = new Bull('my-queue', 'redis://localhost:6379');
+
+// Add JobGuard for durability
+const jobGuard = await JobGuard.create(queue, {
+  postgres: 'postgresql://localhost:5432/mydb',
+});
+
+// Use your queue normally - JobGuard works transparently
+await queue.add('email', { to: 'user@example.com' });
+
+// Gracefully shutdown when done
+process.on('SIGTERM', async () => {
+  await jobGuard.shutdown();
+  await queue.close();
+});
+```
+
+## 🎬 Demo
+
+![JobGuard Stress Test](./assets/demo.gif)
+
+✅ **10,000 jobs • 60 workers • Redis crash at peak load • Zero jobs lost**
+
+[▶️ Run the interactive demo yourself →](./demo#readme)
+
+## Features
+
+- 🔒 **Drop-In Integration**: Wraps existing queues without modifying your queue code
+- 🔄 **Automatic Recovery**: Client-side reconciliation detects and recovers stuck jobs
+- 💓 **Heartbeat Support**: Long-running jobs signal liveness for accurate stuck detection
+- 📊 **Multi-Queue Support**: Works with Bull, BullMQ, and Bee-Queue
+- ⚡ **Low Overhead**: <5ms per job operation, minimal memory footprint
+- 🛡️ **Fault Tolerant**: Circuit breaker pattern protects against PostgreSQL failures
+- 🎯 **Type Safe**: Full TypeScript support with strict typing
+
 ## Table of Contents
 
-- [Why JobGuard?](#why-jobguard)
+- [Quick Start](#quick-start)
 - [Demo](#-demo)
 - [Features](#features)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
+- [Why JobGuard?](#why-jobguard)
 - [Database Setup](#database-setup)
+- [Configuration](#configuration)
 - [Advanced Usage](#advanced-usage)
 - [API Reference](#api-reference)
 - [Queue Library Support](#queue-library-support)
@@ -76,63 +128,34 @@ const jobGuard = await JobGuard.create(queue, {
 
 [▶️ Run the interactive stress test yourself](./demo#readme)
 
-### Choose JobGuard If You:
+## Database Setup
 
-- ✅ Already use Bull/BullMQ/Bee-Queue and want to keep Redis performance
-- ✅ Need 100% durability without rewriting existing queue code
-- ✅ Want automatic recovery from Redis crashes
-- ✅ Need to support multiple queue libraries in one codebase
-- ✅ Want minimal integration effort (3 lines of code)
+**One-time setup:** Create the JobGuard table in your PostgreSQL database.
 
-## 🎬 Demo
-
-![JobGuard Stress Test](./assets/demo.gif)
-
-✅ **10,000 jobs • 60 workers • Redis crash at peak load • Zero jobs lost**
-
-[▶️ Run the interactive demo yourself →](./demo#readme)
-
-## Features
-
-- 🔒 **Drop-In Integration**: Wraps existing queues without modifying your queue code
-- 🔄 **Automatic Recovery**: Client-side reconciliation detects and recovers stuck jobs
-- 💓 **Heartbeat Support**: Long-running jobs signal liveness for accurate stuck detection
-- 📊 **Multi-Queue Support**: Works with Bull, BullMQ, and Bee-Queue
-- ⚡ **Low Overhead**: <5ms per job operation, minimal memory footprint
-- 🛡️ **Fault Tolerant**: Circuit breaker pattern protects against PostgreSQL failures
-- 🎯 **Type Safe**: Full TypeScript support with strict typing
-
-## Quick Start
-
-### Installation
+### Option 1: Using psql (Recommended)
 
 ```bash
-npm install jobguard pg
+psql -d mydb -f node_modules/jobguard/schema/001_initial.sql
 ```
 
-### Basic Usage
+### Option 2: Programmatically
 
 ```typescript
-import Bull from 'bull';
-import { JobGuard } from 'jobguard';
+import { Pool } from 'pg';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
-// Create your queue as usual
-const queue = new Bull('my-queue', 'redis://localhost:6379');
-
-// Add JobGuard for durability
-const jobGuard = await JobGuard.create(queue, {
-  postgres: 'postgresql://localhost:5432/mydb',
-});
-
-// Use your queue normally - JobGuard works transparently
-await queue.add('email', { to: 'user@example.com' });
-
-// Gracefully shutdown when done
-process.on('SIGTERM', async () => {
-  await jobGuard.shutdown();
-  await queue.close();
-});
+const pool = new Pool({ connectionString: 'postgresql://localhost:5432/mydb' });
+const schema = readFileSync(
+  join(__dirname, 'node_modules/jobguard/schema/001_initial.sql'),
+  'utf8'
+);
+await pool.query(schema);
 ```
+
+### Option 3: Add to Your Existing Migrations
+
+Copy `node_modules/jobguard/schema/001_initial.sql` into your project's migration system (Knex, TypeORM, Prisma, etc.).
 
 ## Configuration
 
@@ -180,35 +203,6 @@ const jobGuard = await JobGuard.create(queue, {
   },
 });
 ```
-
-## Database Setup
-
-**One-time setup:** Create the JobGuard table in your PostgreSQL database.
-
-### Option 1: Using psql (Recommended)
-
-```bash
-psql -d mydb -f node_modules/jobguard/schema/001_initial.sql
-```
-
-### Option 2: Programmatically
-
-```typescript
-import { Pool } from 'pg';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-
-const pool = new Pool({ connectionString: 'postgresql://localhost:5432/mydb' });
-const schema = readFileSync(
-  join(__dirname, 'node_modules/jobguard/schema/001_initial.sql'),
-  'utf8'
-);
-await pool.query(schema);
-```
-
-### Option 3: Add to Your Existing Migrations
-
-Copy `node_modules/jobguard/schema/001_initial.sql` into your project's migration system (Knex, TypeORM, Prisma, etc.).
 
 ## Advanced Usage
 
