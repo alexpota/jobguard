@@ -48,16 +48,3 @@ jobs:
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Create GitHub release comment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const releaseId = context.payload.release.id;
-            const packageVersion = require('./package.json').version;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: releaseId,
-              body: `📦 Successfully published \`jobguard@${packageVersion}\` to npm!\n\n🔗 https://www.npmjs.com/package/jobguard/v/${packageVersion}`
-            });
