@@ -106,7 +106,7 @@ Enhancement suggestions are welcome! Please include:
 3. **Start PostgreSQL and Redis via Docker:**
    ```bash
    cd demo
-   docker-compose up -d
+   docker compose up -d
    cd ..
    ```
 
@@ -145,7 +145,7 @@ npm run build               # Build TypeScript
 
 **Important notes:**
 - Integration tests use environment variables from `.env.test` (gitignored)
-- E2E tests manage their own Docker containers via docker-compose
+- E2E tests manage their own Docker containers via docker compose
 - All tests run in CI/CD pipeline on pull requests
 
 ### Documentation
