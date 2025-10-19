@@ -13,7 +13,7 @@ docker run -d -p 6379:6379 redis:7
 
 # Or use the demo environment
 cd ../demo
-docker-compose up -d
+docker compose up -d
 ```
 
 Create the database and schema:

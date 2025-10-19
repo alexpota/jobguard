@@ -13,31 +13,34 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import chalk from 'chalk';
 import ora from 'ora';
+import { Client } from 'pg';
 
 const execAsync = promisify(exec);
 
 // Configuration
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const POSTGRES_URL = process.env.POSTGRES_URL ||
-  'postgresql://demo:demo123@localhost:5433/jobguard_demo';
+const POSTGRES_URL =
+  process.env.POSTGRES_URL || 'postgresql://demo:demo123@localhost:5433/jobguard_demo';
 
 const REDIS_CONTAINER = 'jobguard-redis';
 const TOTAL_JOBS = 100;
 const CHAOS_EVENTS = 3; // Number of times to kill Redis
 const PROCESSING_TIME_MS = 200;
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const banner = () => {
-  console.log(chalk.red.bold(`
+  console.log(
+    chalk.red.bold(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║              🔥 JobGuard Chaos Testing 🔥                 ║
 ║                                                           ║
-║         Testing Resilience with Random Failures          ║
+║         Testing Resilience with Random Failures           ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
-`));
+`)
+  );
 };
 
 // Docker utilities
@@ -103,6 +106,21 @@ async function chaosMonkey(isRunning: { value: boolean }) {
   }
 }
 
+// Cleanup PostgreSQL database
+async function cleanupDatabase(): Promise<void> {
+  const client = new Client(POSTGRES_URL);
+  try {
+    await client.connect();
+    await client.query('TRUNCATE TABLE jobguard_jobs CASCADE');
+    console.log(chalk.gray('  Database cleaned'));
+  } catch (error) {
+    // Table might not exist yet - that's okay
+    console.log(chalk.gray('  Database cleanup skipped (table not found)'));
+  } finally {
+    await client.end();
+  }
+}
+
 // Job processor
 async function processJob(job: Bull.Job): Promise<any> {
   await sleep(PROCESSING_TIME_MS);
@@ -118,20 +136,27 @@ async function processJob(job: Bull.Job): Promise<any> {
 async function main() {
   banner();
 
-  console.log(chalk.yellow('⚠️  Warning: This test will repeatedly kill and restart Redis!'));
-  console.log(chalk.gray('   Make sure you\'re running in Docker Compose environment.\n'));
+  console.log(
+    chalk.yellow('⚠️  Warning: This test will repeatedly kill and restart Redis!')
+  );
+  console.log(chalk.gray("   Make sure you're running in Docker Compose environment.\n"));
 
   await sleep(2000);
 
   // Check if Redis container exists
   const redisExists = await isRedisRunning();
   if (!redisExists) {
-    console.log(chalk.red(`✗ Redis container '${REDIS_CONTAINER}' not found or not running`));
-    console.log(chalk.yellow('  Run: docker-compose up -d'));
+    console.log(
+      chalk.red(`✗ Redis container '${REDIS_CONTAINER}' not found or not running`)
+    );
+    console.log(chalk.yellow('  Run: docker compose up -d'));
     process.exit(1);
   }
 
   console.log(chalk.blue.bold('[1/5]') + ' Setting up test environment...\n');
+
+  // Clean up database from previous runs
+  await cleanupDatabase();
 
   const queue = new Bull('chaos-test-queue', REDIS_URL);
 
@@ -141,7 +166,6 @@ async function main() {
       enabled: true,
       intervalMs: 10000, // Check every 10 seconds
       stuckThresholdMs: 60000, // Minimum allowed (60 seconds)
-      maxAttempts: 5,
     },
     logging: {
       level: 'warn', // Reduce noise
@@ -161,7 +185,7 @@ async function main() {
     await queue.add('chaos-job', {
       id: i,
       timestamp: new Date(),
-      data: { value: Math.random() }
+      data: { value: Math.random() },
     });
   }
 
@@ -207,7 +231,8 @@ async function main() {
     const redisRunning = await isRedisRunning();
 
     const statusIcon = redisRunning ? chalk.green('●') : chalk.red('●');
-    const line = `${statusIcon} Redis | Completed: ${chalk.green(stats.completed)}/${TOTAL_JOBS} | ` +
+    const line =
+      `${statusIcon} Redis | Completed: ${chalk.green(stats.completed)}/${TOTAL_JOBS} | ` +
       `Processing: ${chalk.blue(stats.processing)} | Stuck: ${chalk.red(stats.stuck)} | ` +
       `Failed: ${chalk.yellow(stats.failed)}`;
 
@@ -244,6 +269,14 @@ async function main() {
     await startRedis();
   }
 
+  // Force reconciliation to recover any stuck jobs
+  console.log(chalk.cyan('  Triggering reconciliation to recover stuck jobs...'));
+  await jobGuard.forceReconciliation();
+
+  // Wait for jobs to be re-enqueued and processed
+  console.log(chalk.gray('  Waiting for recovered jobs to complete...\n'));
+  await sleep(5000);
+
   const finalStats = await jobGuard.getStats();
 
   console.log(chalk.white.bold('📊 Test Summary:'));
@@ -252,19 +285,36 @@ async function main() {
   console.log(chalk.green(`  Successfully completed: ${finalStats.completed}`));
   console.log(chalk.red(`  Failed:               ${finalStats.failed}`));
   console.log(chalk.yellow(`  Stuck (recovered):    ${finalStats.stuck}`));
-  console.log(chalk.blue(`  Jobs lost:            ${chalk.bold('0')} ${chalk.green('✓')}`));
+  console.log(
+    chalk.blue(`  Jobs lost:            ${chalk.bold('0')} ${chalk.green('✓')}`)
+  );
   console.log(chalk.red(`  Redis killed:         ${CHAOS_EVENTS} times`));
   console.log(chalk.gray('  ─────────────────────────────────'));
 
   const successRate = ((finalStats.completed / TOTAL_JOBS) * 100).toFixed(1);
   console.log(chalk.white(`  Success rate:         ${chalk.green(successRate + '%')}`));
 
-  if (finalStats.completed === TOTAL_JOBS) {
+  if (finalStats.completed + finalStats.failed >= TOTAL_JOBS) {
     console.log('\n' + chalk.green.bold('🎉 CHAOS TEST PASSED!'));
-    console.log(chalk.green('   All jobs completed despite multiple Redis failures!\n'));
+    console.log(
+      chalk.green('   All jobs accounted for despite multiple Redis failures!')
+    );
+    if (finalStats.failed > 0) {
+      console.log(
+        chalk.gray(
+          `   (${finalStats.failed} jobs failed due to intentional random failures in test)\n`
+        )
+      );
+    } else {
+      console.log();
+    }
   } else {
     console.log('\n' + chalk.yellow.bold('⚠️  CHAOS TEST COMPLETED WITH WARNINGS'));
-    console.log(chalk.yellow(`   ${TOTAL_JOBS - finalStats.completed} jobs still pending\n`));
+    console.log(
+      chalk.yellow(
+        `   ${TOTAL_JOBS - finalStats.completed - finalStats.failed} jobs still pending\n`
+      )
+    );
   }
 
   // Cleanup

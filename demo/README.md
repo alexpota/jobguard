@@ -13,7 +13,7 @@ Interactive demonstrations of JobGuard's durability and recovery capabilities.
 ### 1. Start Infrastructure
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 This starts:
@@ -105,7 +105,7 @@ LIMIT 10;
 
 Make sure Docker containers are running:
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 Both should show "Up" and "(healthy)":
@@ -118,8 +118,8 @@ jobguard-redis       Up (healthy)
 ### Reset everything
 
 ```bash
-docker-compose down -v
-docker-compose up -d
+docker compose down -v
+docker compose up -d
 npm install
 ```
 
@@ -148,7 +148,7 @@ npm install
 
 Stop and remove all containers:
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ## Questions?
