@@ -1,6 +1,6 @@
 {
   "name": "jobguard",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "PostgreSQL durability for Redis-backed job queues with minimal integration",
   "keywords": [
     "job-queue",

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-10-21
+
+### Changed
+- Remove sourcemaps from published package (reduces size from 407 KB to 155 KB, -62%)
+
 ## [0.1.0] - Unreleased
 
 Initial release of JobGuard.

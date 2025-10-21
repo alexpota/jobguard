@@ -6,7 +6,7 @@ export default defineConfig({
   dts: true,
   clean: true,
   splitting: false,
-  sourcemap: true,
+  sourcemap: false,
   minify: false,
   treeshake: true,
   target: 'node22',
