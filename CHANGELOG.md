@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2025-11-18
+
+### Security
+- Fix js-yaml prototype pollution vulnerability (CVE-2025-64718)
+- Fix glob CLI command injection vulnerability (CVE-2025-64756)
+- Upgrade ESLint 8 → 9 with typescript-eslint v8
+- Upgrade Jest 29 → 30 with updated type definitions
+- Add npm overrides to enforce patched dependency versions
+
+### Changed
+- Migrate to ESLint flat config (eslint.config.mjs)
+
 ## [0.1.2] - 2025-10-21
 
 ### Changed
