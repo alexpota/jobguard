@@ -186,7 +186,7 @@ export class BullMQAdapter extends BaseAdapter {
             return true;
           }
         }
-      } catch (fallbackError) {
+      } catch (_fallbackError) {
         // Job doesn't exist, which is fine
       }
       return false;
